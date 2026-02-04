@@ -18,6 +18,9 @@ def create_app():
     db.init_app(app)
     bcrypt.init_app(app)
     
+    from .models.user import User
+    from .models.report import Report
+    
     migrate = Migrate(app, db)
     
     return app
