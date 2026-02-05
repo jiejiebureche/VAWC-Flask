@@ -1,12 +1,15 @@
 from datetime import datetime
 from app import db
 from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.dialects.postgresql import UUID
 
 class Report(db.Model):
+    __tablename__ = 'reports'
+    
     id = db.Column(db.Integer, primary_key=True)
     reporter_name = db.Column(db.String(255), nullable=False)
     
-    reporter_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    reporter_id = db.Column(UUID(as_uuid=True), db.ForeignKey('users.id'), nullable=False)
     reporter = db.relationship('User', backref=db.backref('reports', lazy=True))
     
     city = db.Column(db.String(255), nullable=False)
