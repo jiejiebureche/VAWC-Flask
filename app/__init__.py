@@ -46,6 +46,8 @@ def create_app():
     app.register_blueprint(auth_bp, url_prefix='/auth')
     from .blueprints.user.routes import user_bp
     app.register_blueprint(user_bp, url_prefix='/users')
+    from .blueprints.reports.routes import reports_bp
+    app.register_blueprint(reports_bp, url_prefix='/reports')
     
     @app.route('/')
     def index():

@@ -25,6 +25,17 @@ class User(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+    @property
+    def password(self):
+        raise AttributeError('Password is not a readable attribute.')
+
+    @password.setter
+    def password(self, password):
+        # This will trigger the @validates('password') method below
+        self.validate_password('password', password)
+        # If validation passes, hash it and store it
+        self.password_hash = bcrypt.generate_password_hash(password).decode('utf-8')
+        
     # --- PH Contact Number Validation ---
     @validates('contact_num')
     def validate_contact_num(self, key, number):
@@ -34,6 +45,46 @@ class User(db.Model):
             raise ValueError("Contact number is not valid for the Philippines!")
         return number
 
+    @validates('email')
+    def validate_email(self, key, address):
+        if '@' not in address:
+            raise ValueError("Invalid email address")
+        return address
+    
+    @validates('password')
+    def validate_password(self, key, password):
+        
+        special_chars_regex = r'.*[!@#$%^&*()_+\-=\[\]{};:\'"|\\,./<>?]'
+        
+        if len(password) < 8:
+            raise ValueError('Password must be at least 8 characters long.')
+        if not re.search(r'[A-Z]', password):
+            raise ValueError('Password must contain at least one uppercase letter.')
+        if not re.search(r'[a-z]', password):
+            raise ValueError('Password must contain at least one lowercase letter.')
+        if not re.search(r'\d', password):
+            raise ValueError('Password must contain at least one number.')
+        if not re.search(special_chars_regex, password):
+            raise ValueError('Password must contain at least one special character.')
+    
+    def to_dict(self):
+            return {
+                "id": self.id,
+                "name": self.name,
+                "dob": self.dob,
+                "complainant_brgy": self.barangay_complainant,
+                "contact_num": self.contact_num,
+                "email": self.email,
+                "city": self.city,
+                "role": self.role,
+                "created_at": self.created_at.isoformat() # Dates must be converted to strings
+            }
+             
+    def generate_activation_token(self, email=None, purpose='activate'):
+        email_to_encode = email if email else self.email
+        serializer = URLSafeTimedSerializer(current_app.config['SECRET_KEY'])
+        return serializer.dumps({'user_id': str(self.id), 'new_email': email_to_encode, "purpose": purpose}, salt='email-confirm')
+    
     @staticmethod
     def create_inactive_user(name, dob, city, barangay, contact_num, email, is_active, password, id_url, role='user'):
         if not email or not password:
@@ -41,6 +92,7 @@ class User(db.Model):
 
         if User.query.filter_by(email=email).first():
             raise ValueError("Email already registered")
+        
 
         new_user = User(
             name=name,
@@ -59,19 +111,6 @@ class User(db.Model):
         db.session.add(new_user)
         db.session.commit()
         return new_user
-
-    def to_dict(self):
-            return {
-                "id": self.id,
-                "name": self.name,
-                "dob": self.dob,
-                "complainant_brgy": self.barangay_complainant,
-                "contact_num": self.contact_num,
-                "email": self.email,
-                "city": self.city,
-                "role": self.role,
-                "created_at": self.created_at.isoformat() # Dates must be converted to strings
-            }
             
     @staticmethod
     def login(email, password):
@@ -88,6 +127,4 @@ class User(db.Model):
 
         return user
     
-    def generate_activation_token(self):
-        serializer = URLSafeTimedSerializer(current_app.config['SECRET_KEY'])
-        return serializer.dumps(self.email, salt='email-confirm')
+    

@@ -85,21 +85,32 @@ def activate(token):
     serializer = URLSafeTimedSerializer(os.getenv('SECRET_KEY'))
     
     try:
-        # Token expires in 1 hour (3600 seconds)
-        email = serializer.loads(token, salt='email-confirm', max_age=3600)
+        data = serializer.loads(token, salt='email-confirm', max_age=3600)
+        
+        new_email = data.get('new_email')
+        purpose = data.get('purpose')
+        user_id = data.get('user_id')
+        
+        user = User.query.get(user_id)
+
+        if not user:
+            return jsonify({"error": "User not found."}), 404
+
+        if purpose == 'activate':
+            if user.is_active:
+                return jsonify({"message": "Account already activated."}), 200
+            user.is_active = True
+        
+        elif purpose == 'change-email':
+            user.email = new_email
+
+        elif purpose not in ['activate', 'change-email']:
+            return jsonify({"message": "Invalid purpose"}), 400
+
+        db.session.commit()
+        
+        return jsonify({"message": "Account activated successfully! You can now log in."}), 200
+    
     except Exception:
+        db.session.rollback()
         return jsonify({"error": "The activation link is invalid or has expired."}), 400
-
-    user = User.query.filter_by(email=email).first()
-
-    if not user:
-        return jsonify({"error": "User not found."}), 404
-
-    if user.is_active:
-        return jsonify({"message": "Account already activated."}), 200
-
-    # Activate the user
-    user.is_active = True
-    db.session.commit()
-
-    return jsonify({"message": "Account activated successfully! You can now log in."}), 200
